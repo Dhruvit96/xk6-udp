@@ -11,6 +11,10 @@ func init() {
 	modules.Register("k6/x/udp", new(UDP))
 }
 
+const maxPackageSize = 63 * 1024 // 63KiB
+
+var newLine = []byte("\n")
+
 type UDP struct{}
 
 func (u *UDP) Connect(address string) (net.Conn, error) {
@@ -27,10 +31,23 @@ func (u *UDP) Connect(address string) (net.Conn, error) {
 	return conn, nil
 }
 
+func (u *UDP) Writeln(conn net.Conn, data []byte) error {
+	return u.Write(conn, append(data, newLine...))
+}
+
 func (u *UDP) Write(conn net.Conn, data []byte) error {
-	_, err := conn.Write(data)
-	if err != nil {
-		return err
+	for i := 0; i < len(data); i += maxPackageSize {
+		end := i + maxPackageSize
+		if end > len(data) {
+			end = len(data)
+		}
+
+		chunk := data[i:end]
+
+		_, err := conn.Write(chunk)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
